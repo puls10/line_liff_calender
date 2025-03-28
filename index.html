@@ -8,59 +8,64 @@
   <!-- LIFF SDK -->
   <script src="https://static.line-scdn.net/liff/edge/2.1/sdk.js"></script>
 
-  <!-- FullCalendar CDN -->
+  <!-- FullCalendar -->
   <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet" />
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
 
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-      padding: 1rem;
+      font-family: sans-serif;
       margin: 0;
-      background-color: #f7f7f7;
+      padding: 1rem;
+      background-color: #f8f8f8;
     }
-
     h1, h2 {
       text-align: center;
       font-size: 1.5rem;
-      margin-top: 1rem;
     }
-
-    #user {
-      text-align: center;
-      margin-bottom: 1rem;
-      font-size: 1.1rem;
-    }
-
     #calendar {
       max-width: 100%;
-      margin: 0 auto;
+      margin: 2rem auto;
     }
-
     #schedule-list {
       max-width: 90%;
       margin: 1rem auto;
-      padding: 0;
       list-style: none;
-      background-color: white;
-      border-radius: 8px;
-      box-shadow: 0 0 6px rgba(0,0,0,0.1);
+      padding: 0;
     }
-
     #schedule-list li {
+      background: white;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
       padding: 0.75rem 1rem;
-      border-bottom: 1px solid #eee;
+      box-shadow: 0 0 4px rgba(0, 0, 0, 0.05);
     }
 
-    @media (max-width: 600px) {
-      h1, h2 {
-        font-size: 1.2rem;
-      }
-
-      #schedule-list li {
-        font-size: 0.9rem;
-        padding: 0.5rem 0.75rem;
-      }
+    /* モーダル */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 400px;
+    }
+    .modal input {
+      width: 100%;
+      padding: 0.5rem;
+      margin-bottom: 1rem;
+      font-size: 1rem;
+    }
+    .modal button {
+      margin-right: 0.5rem;
     }
   </style>
 </head>
@@ -72,8 +77,24 @@
   <h2>予定一覧</h2>
   <ul id="schedule-list"></ul>
 
+  <!-- モーダル -->
+  <div class="modal" id="event-modal">
+    <div class="modal-content">
+      <h3 id="modal-title">予定を追加</h3>
+      <input type="text" id="event-input" placeholder="予定のタイトルを入力">
+      <div>
+        <button id="save-btn">保存</button>
+        <button id="delete-btn">削除</button>
+        <button onclick="closeModal()">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     const scheduleList = [];
+    let calendar;
+    let currentDate = null;
+    let currentEvent = null;
 
     async function init() {
       await liff.init({ liffId: "2007134594-R5KEBJjL" });
@@ -89,29 +110,67 @@
 
     function initCalendar() {
       const calendarEl = document.getElementById('calendar');
-      const calendar = new FullCalendar.Calendar(calendarEl, {
+      calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
+        locale: 'ja',
         selectable: true,
-        aspectRatio: 1,
-        headerToolbar: {
-          left: 'prev,next today',
-          center: 'title',
-          right: ''
+        editable: true,
+        eventClick: function(info) {
+          currentEvent = info.event;
+          document.getElementById("event-input").value = currentEvent.title;
+          document.getElementById("modal-title").innerText = "予定の編集・削除";
+          currentDate = currentEvent.startStr;
+          document.getElementById("delete-btn").style.display = "inline-block";
+          openModal();
         },
         dateClick: function(info) {
-          const title = prompt(`${info.dateStr} の予定を入力してください:`);
-          if (title) {
-            calendar.addEvent({
-              title: title,
-              start: info.dateStr
-            });
-            scheduleList.push({ date: info.dateStr, event: title });
-            renderList();
-          }
-        }
+          currentDate = info.dateStr;
+          currentEvent = null;
+          document.getElementById("event-input").value = "";
+          document.getElementById("modal-title").innerText = "予定を追加";
+          document.getElementById("delete-btn").style.display = "none";
+          openModal();
+        },
+        events: [],
+        eventDisplay: "block",
+        dayMaxEvents: true
       });
       calendar.render();
+
+      loadHolidays();
     }
+
+    function openModal() {
+      document.getElementById("event-modal").style.display = "flex";
+    }
+
+    function closeModal() {
+      document.getElementById("event-modal").style.display = "none";
+    }
+
+    document.getElementById("save-btn").addEventListener("click", () => {
+      const title = document.getElementById("event-input").value;
+      if (!title) return;
+
+      if (currentEvent) {
+        currentEvent.setProp("title", title);
+      } else {
+        calendar.addEvent({
+          title: title,
+          start: currentDate
+        });
+        scheduleList.push({ date: currentDate, event: title });
+        renderList();
+      }
+      closeModal();
+    });
+
+    document.getElementById("delete-btn").addEventListener("click", () => {
+      if (currentEvent) {
+        currentEvent.remove();
+      }
+      closeModal();
+    });
 
     function renderList() {
       const ul = document.getElementById("schedule-list");
@@ -123,8 +182,25 @@
       });
     }
 
+    // 🇯🇵 日本の祝日表示（Google Calendar APIまたはJSON API利用）
+    async function loadHolidays() {
+      try {
+        const res = await fetch("https://holidays-jp.github.io/api/v1/date.json");
+        const holidays = await res.json();
+        for (const [date, title] of Object.entries(holidays)) {
+          calendar.addEvent({
+            title: title,
+            start: date,
+            display: 'background',
+            color: '#ffeaea'
+          });
+        }
+      } catch (e) {
+        console.error("祝日の取得に失敗しました", e);
+      }
+    }
+
     init();
   </script>
 </body>
 </html>
-
