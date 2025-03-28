@@ -1,118 +1,214 @@
-<script>
-  const scheduleList = [];
-  let calendar;
-  let currentDate = null;
-  let currentEvent = null;
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LINE Calendar</title>
 
-  document.addEventListener("DOMContentLoaded", () => {
-    init();
-  });
+  <!-- LIFF SDK -->
+  <script src="https://static.line-scdn.net/liff/edge/2.1/sdk.js"></script>
 
-  async function init() {
-    try {
-      await liff.init({ liffId: "2007134594-R5KEBJjL" });
+  <!-- FullCalendar -->
+  <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js"></script>
 
-      if (!liff.isLoggedIn()) {
-        liff.login();
-      } else {
-        const profile = await liff.getProfile();
-        document.getElementById("user").innerText = `こんにちは、${profile.displayName}さん！`;
-        initCalendar();
-      }
-    } catch (error) {
-      console.error("LIFF初期化エラー:", error);
-      document.getElementById("user").innerText = "LIFFの初期化に失敗しました。";
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      padding: 1rem;
+      background-color: #f8f8f8;
     }
-  }
+    h1, h2 {
+      text-align: center;
+      font-size: 1.5rem;
+    }
+    #calendar {
+      max-width: 100%;
+      margin: 2rem auto;
+    }
+    #schedule-list {
+      max-width: 90%;
+      margin: 1rem auto;
+      list-style: none;
+      padding: 0;
+    }
+    #schedule-list li {
+      background: white;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      padding: 0.75rem 1rem;
+      box-shadow: 0 0 4px rgba(0, 0, 0, 0.05);
+    }
 
-  function initCalendar() {
-    const calendarEl = document.getElementById('calendar');
-    calendar = new FullCalendar.Calendar(calendarEl, {
-      initialView: 'dayGridMonth',
-      locale: 'ja',
-      selectable: true,
-      editable: true,
-      eventClick: function(info) {
-        currentEvent = info.event;
-        document.getElementById("event-input").value = currentEvent.title;
-        document.getElementById("modal-title").innerText = "予定の編集・削除";
-        currentDate = currentEvent.startStr;
-        document.getElementById("delete-btn").style.display = "inline-block";
-        openModal();
-      },
-      dateClick: function(info) {
-        currentDate = info.dateStr;
-        currentEvent = null;
-        document.getElementById("event-input").value = "";
-        document.getElementById("modal-title").innerText = "予定を追加";
-        document.getElementById("delete-btn").style.display = "none";
-        openModal();
-      },
-      events: [],
-      eventDisplay: "block",
-      dayMaxEvents: true
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.4);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 8px;
+      width: 90%;
+      max-width: 400px;
+    }
+    .modal input {
+      width: 100%;
+      padding: 0.5rem;
+      margin-bottom: 1rem;
+      font-size: 1rem;
+    }
+    .modal button {
+      margin-right: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>カレンダー予定追加</h1>
+  <div id="user"></div>
+  <div id="calendar"></div>
+
+  <h2>予定一覧</h2>
+  <ul id="schedule-list"></ul>
+
+  <!-- モーダル -->
+  <div class="modal" id="event-modal">
+    <div class="modal-content">
+      <h3 id="modal-title">予定を追加</h3>
+      <input type="text" id="event-input" placeholder="予定のタイトルを入力">
+      <div>
+        <button id="save-btn">保存</button>
+        <button id="delete-btn">削除</button>
+        <button onclick="closeModal()">キャンセル</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ✅ スクリプトは body の最後に配置 -->
+  <script>
+    const scheduleList = [];
+    let calendar;
+    let currentDate = null;
+    let currentEvent = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      init();
     });
-    calendar.render();
 
-    loadHolidays();
-  }
+    async function init() {
+      try {
+        await liff.init({ liffId: "2007134594-R5KEBJjL" });
 
-  function openModal() {
-    document.getElementById("event-modal").style.display = "flex";
-  }
+        if (!liff.isLoggedIn()) {
+          liff.login();
+        } else {
+          const profile = await liff.getProfile();
+          document.getElementById("user").innerText = `こんにちは、${profile.displayName}さん！`;
+          initCalendar();
+        }
+      } catch (error) {
+        console.error("LIFF初期化エラー:", error);
+        document.getElementById("user").innerText = "LIFFの初期化に失敗しました。";
+      }
+    }
 
-  function closeModal() {
-    document.getElementById("event-modal").style.display = "none";
-  }
-
-  document.getElementById("save-btn").addEventListener("click", () => {
-    const title = document.getElementById("event-input").value;
-    if (!title) return;
-
-    if (currentEvent) {
-      currentEvent.setProp("title", title);
-    } else {
-      calendar.addEvent({
-        title: title,
-        start: currentDate
+    function initCalendar() {
+      const calendarEl = document.getElementById('calendar');
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'ja',
+        selectable: true,
+        editable: true,
+        eventClick: function(info) {
+          currentEvent = info.event;
+          document.getElementById("event-input").value = currentEvent.title;
+          document.getElementById("modal-title").innerText = "予定の編集・削除";
+          currentDate = currentEvent.startStr;
+          document.getElementById("delete-btn").style.display = "inline-block";
+          openModal();
+        },
+        dateClick: function(info) {
+          currentDate = info.dateStr;
+          currentEvent = null;
+          document.getElementById("event-input").value = "";
+          document.getElementById("modal-title").innerText = "予定を追加";
+          document.getElementById("delete-btn").style.display = "none";
+          openModal();
+        },
+        events: [],
+        eventDisplay: "block",
+        dayMaxEvents: true
       });
-      scheduleList.push({ date: currentDate, event: title });
-      renderList();
-    }
-    closeModal();
-  });
+      calendar.render();
 
-  document.getElementById("delete-btn").addEventListener("click", () => {
-    if (currentEvent) {
-      currentEvent.remove();
+      loadHolidays();
     }
-    closeModal();
-  });
 
-  function renderList() {
-    const ul = document.getElementById("schedule-list");
-    ul.innerHTML = "";
-    scheduleList.forEach(item => {
-      const li = document.createElement("li");
-      li.innerText = `${item.date} - ${item.event}`;
-      ul.appendChild(li);
+    function openModal() {
+      document.getElementById("event-modal").style.display = "flex";
+    }
+
+    function closeModal() {
+      document.getElementById("event-modal").style.display = "none";
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("save-btn").addEventListener("click", () => {
+        const title = document.getElementById("event-input").value;
+        if (!title) return;
+
+        if (currentEvent) {
+          currentEvent.setProp("title", title);
+        } else {
+          calendar.addEvent({
+            title: title,
+            start: currentDate
+          });
+          scheduleList.push({ date: currentDate, event: title });
+          renderList();
+        }
+        closeModal();
+      });
+
+      document.getElementById("delete-btn").addEventListener("click", () => {
+        if (currentEvent) {
+          currentEvent.remove();
+        }
+        closeModal();
+      });
     });
-  }
 
-  async function loadHolidays() {
-    try {
-      const res = await fetch("https://holidays-jp.github.io/api/v1/date.json");
-      const holidays = await res.json();
-      for (const [date, title] of Object.entries(holidays)) {
-        calendar.addEvent({
-          title: title,
-          start: date,
-          display: 'background',
-          color: '#ffeaea'
-        });
-      }
-    } catch (e) {
-      console.error("祝日の取得に失敗しました", e);
+    function renderList() {
+      const ul = document.getElementById("schedule-list");
+      ul.innerHTML = "";
+      scheduleList.forEach(item => {
+        const li = document.createElement("li");
+        li.innerText = `${item.date} - ${item.event}`;
+        ul.appendChild(li);
+      });
     }
-  }
-</script>
+
+    async function loadHolidays() {
+      try {
+        const res = await fetch("https://holidays-jp.github.io/api/v1/date.json");
+        const holidays = await res.json();
+        for (const [date, title] of Object.entries(holidays)) {
+          calendar.addEvent({
+            title: title,
+            start: date,
+            display: 'background',
+            color: '#ffeaea'
+          });
+        }
+      } catch (e) {
+        console.error("祝日の取得に失敗しました", e);
+      }
+    }
+  </script>
+</body>
+</html>
