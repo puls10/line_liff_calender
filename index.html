@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>LINE Calendar</title>
+  <script src="https://static.line-scdn.net/liff/edge/2.1/sdk.js"></script>
+</head>
+<body>
+  <h1>カレンダー予定追加</h1>
+  <div id="user"></div>
+
+  <label>日付: <input type="date" id="date"></label><br>
+  <label>予定: <input type="text" id="event"></label><br>
+  <button onclick="addEvent()">予定を追加</button>
+
+  <ul id="schedule-list"></ul>
+
+  <script>
+    const scheduleList = [];
+
+    async function init() {
+      await liff.init({ liffId: "YOUR_LIFF_ID" }); // ←ここに自分のLIFF IDを入れる
+
+      if (!liff.isLoggedIn()) {
+        liff.login();
+      } else {
+        const profile = await liff.getProfile();
+        document.getElementById("user").innerText = `こんにちは、${profile.displayName}さん！`;
+      }
+    }
+
+    function addEvent() {
+      const date = document.getElementById("date").value;
+      const event = document.getElementById("event").value;
+      if (date && event) {
+        scheduleList.push({ date, event });
+        renderList();
+      }
+    }
+
+    function renderList() {
+      const ul = document.getElementById("schedule-list");
+      ul.innerHTML = "";
+      scheduleList.forEach(item => {
+        const li = document.createElement("li");
+        li.innerText = `${item.date} - ${item.event}`;
+        ul.appendChild(li);
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
